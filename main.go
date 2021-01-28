@@ -117,6 +117,8 @@ func main() {
 
 	fmt.Println("Starting...")
 	fmt.Printf("Configuration read. Scrap time = %d seconds.\n", config.ScrapeIntervalSeconds)
+	fmt.Printf("Configuration: %+v\n", config)
+	
 
 	GatherMetrics()
 
@@ -245,9 +247,9 @@ func main() {
 		Help: "Cumulative count of writes completed."}, labelNames)
 	metrics = append(metrics, counterFsWrites)
 
-	http.Handle("/metrics", promhttp.Handler())
+	http.Handle(config.MetricsPath, promhttp.Handler())
 	srv := startHttpServer(config.Port)
-	fmt.Printf("Metrics server started on 'http://localhost:%d/metrics'\n", config.Port)
+	fmt.Printf("Metrics server started on 'http://localhost:%d%s'\n", config.Port, config.MetricsPath)
 
 	go func() {
 		for {
@@ -286,7 +288,7 @@ func GatherMetrics() {
 	}
 
 	for _, container := range containers {
-		fmt.Printf("%s %s\n", container.ID[:12], container.Image)
+		//fmt.Printf("%s %s\n", container.ID[:12], container.Image)
 
 		info, ok := infos[container.ID]
 		if !ok {
@@ -404,12 +406,15 @@ func BuildLabels(id string, filter bool) prometheus.Labels {
 	info := infos[id]
 	var labels = prometheus.Labels{}
 	if config.Kubernetes {
+	    //fmt.Printf("%+v\n", info.Config)
 		labels = prometheus.Labels{"id": "/docker/" + id, "image": info.Config.Image, 
 		    "pod": info.Config.Labels["io.kubernetes.pod.name"], 
 		    "namespace": info.Config.Labels["io.kubernetes.pod.namespace"],
 			"kubernetes_io_hostname": os.Getenv("NODE_NAME"),
 			"beta_kubernetes_io_os": "windows",
-			"kubernetes_io_role": "node"}
+			"kubernetes_io_role": "node",
+			"name": info.Name,
+			"container": info.Config.Labels["io.kubernetes.container.name"] }
 	} else {
 		labels = prometheus.Labels{"id": "/docker/" + id, "image": info.Config.Image, "name": info.Name}
 		for labelName, labelValue := range info.Config.Labels {
